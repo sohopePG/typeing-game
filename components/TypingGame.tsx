@@ -1,70 +1,77 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import type { JSX } from 'react';
 import { getWords } from '@/actions/auth';
 
 type Word = {
-  id: number;
-  japanese: string;
-  romaji: string;
+  readonly id: number;
+  readonly japanese: string;
+  readonly romaji: string;
 };
 
-export default function TypingGame() {
+type GetWordsResponse = {
+  data?: Word[];
+  error?: string;
+};
+
+export default function TypingGame(): JSX.Element {
   const [words, setWords] = useState<Word[]>([]);
-  const [currentWordIndex, setCurrentWordIndex] = useState(0);
-  const [input, setInput] = useState('');
-  const [score, setScore] = useState(0);
+  const [currentWordIndex, setCurrentWordIndex] = useState<number>(0);
+  const [input, setInput] = useState<string>('');
+  const [score, setScore] = useState<number>(0);
   const [error, setError] = useState<string | null>(null);
-  const [isGameCleared, setIsGameCleared] = useState(false);
-  const [errorFlash, setErrorFlash] = useState(false);
+  const [isGameCleared, setIsGameCleared] = useState<boolean>(false);
+  const [errorFlash, setErrorFlash] = useState<boolean>(false);
   const gameAreaRef = useRef<HTMLDivElement>(null);
 
-  // 単語の取得
+  // 単語取得処理
   useEffect(() => {
-    const fetchWords = async () => {
-      const result = await getWords();
-      if (result?.error) {
+    const fetchWords = async (): Promise<void> => {
+      const result = await getWords() as GetWordsResponse;
+      if (result.error) {
         setError(result.error);
-      } else if (result?.data) {
+      } else if (result.data) {
         setWords(result.data);
       }
     };
+
     fetchWords();
   }, []);
 
-  // キーボードイベントの設定
+  // 正しい文字入力処理
+  const handleCharacterInput = useCallback((key: string): void => {
+    const currentWord = words[currentWordIndex];
+    const romaji = currentWord.romaji.toLowerCase();
+    const expectedChar = romaji[input.length];
+
+    if (key === expectedChar) {
+      const newInput = input + key;
+      setInput(newInput);
+      setErrorFlash(false);
+
+      if (newInput === romaji) {
+        setScore((prev) => prev + 1);
+        setInput('');
+        if (currentWordIndex + 1 < words.length) {
+          setCurrentWordIndex((prev) => prev + 1);
+        } else {
+          setIsGameCleared(true);
+        }
+      }
+    } else {
+      setErrorFlash(true);
+      setTimeout(() => setErrorFlash(false), 200);
+    }
+  }, [input, currentWordIndex, words]);
+
+  // キーボードイベント処理
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
+    const handleKeyDown = (e: KeyboardEvent): void => {
       if (isGameCleared || error || words.length === 0) return;
 
-      const currentWord = words[currentWordIndex];
-      if (!currentWord) return;
-
-      const romaji = currentWord.romaji.toLowerCase();
-      const expectedChar = romaji[input.length];
-
-      // アルファベット入力
       if (/^[a-zA-Z]$/.test(e.key)) {
-        const key = e.key.toLowerCase();
-        if (key === expectedChar) {
-          const newInput = input + key;
-          setInput(newInput);
-          setErrorFlash(false);
-          // ローマ字全体と一致したら次の単語へ
-          if (newInput === romaji) {
-            setScore((prev) => prev + 1);
-            setInput('');
-            if (currentWordIndex + 1 < words.length) {
-              setCurrentWordIndex((prev) => prev + 1);
-            } else {
-              setIsGameCleared(true);
-            }
-          }
-        } else {
-          // 間違った入力でエラー点滅
-          setErrorFlash(true);
-          setTimeout(() => setErrorFlash(false), 200);
-        }
+        handleCharacterInput(e.key.toLowerCase());
       } else if (e.key === 'Backspace') {
         setInput((prev) => prev.slice(0, -1));
         setErrorFlash(false);
@@ -73,21 +80,20 @@ export default function TypingGame() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [input, currentWordIndex, words, isGameCleared, error]);
+  }, [handleCharacterInput, isGameCleared, error, words.length]);
 
-  // フォーカスを設定
-  const focusGameArea = () => {
+  const focusGameArea = (): void => {
     gameAreaRef.current?.focus();
   };
 
-  const resetGame = () => {
+  const resetGame = useCallback((): void => {
     setCurrentWordIndex(0);
     setInput('');
     setScore(0);
     setIsGameCleared(false);
     setErrorFlash(false);
     focusGameArea();
-  };
+  }, []);
 
   if (error) {
     return <p className="text-red-500 text-center">{error}</p>;
@@ -113,7 +119,7 @@ export default function TypingGame() {
   }
 
   const currentWord = words[currentWordIndex];
-  const romaji = currentWord.romaji.toLowerCase();
+  const romaji = currentWord?.romaji.toLowerCase() ?? '';
   const typed = input.toLowerCase();
 
   return (
@@ -124,12 +130,16 @@ export default function TypingGame() {
       className="space-y-4 outline-none focus:ring-2 focus:ring-blue-500 rounded-md p-4"
     >
       <div className="text-center">
-        <p className="text-2xl font-bold">{currentWord.japanese}</p>
-        <p className={!errorFlash ? 'text-2xl text-gray-600': 'text-2xl text-red-600'}>
+        <p className="text-2xl font-bold">{currentWord?.japanese}</p>
+        <p className={errorFlash ? 'text-2xl text-red-600' : 'text-2xl text-gray-600'}>
           {romaji.split('').map((char, index) => (
             <span
               key={index}
-              className={index < typed.length && typed[index] === char ? 'opacity-50' : ''}
+              className={
+                index < typed.length && typed[index] === char
+                  ? 'opacity-50'
+                  : undefined
+              }
             >
               {char}
             </span>

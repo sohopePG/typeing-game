@@ -1,54 +1,72 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, FormEvent } from 'react';
+import type { JSX } from 'react';
 import { login, signup } from '@/actions/auth';
 
-// ログインとサインアップを処理するページコンポーネント
-export default function LoginPage() {
-  // フォームの状態を管理するstate
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+type AuthAction = 'login' | 'signup';
+
+export default function LoginPage(): JSX.Element {
+  const [email, setEmail] = useState<string>('');
+  const [password, setPassword] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [loading, setLoading] = useState<boolean>(false);
 
-  // ログインまたはサインアップを処理する関数
-  const handleSubmit = async (action: 'login' | 'signup') => {
-    // エラーとメッセージをリセット
+  const handleSubmit = async (
+    e: FormEvent<HTMLFormElement>,
+    action: AuthAction
+  ): Promise<void> => {
+    e.preventDefault();
     setError(null);
     setMessage(null);
-    
-    // フォームデータの作成
+    setLoading(true);
+
     const formData = new FormData();
     formData.append('email', email);
     formData.append('password', password);
 
-    // 選択されたアクションに基づいて認証を実行
     const result = action === 'login' ? await login(formData) : await signup(formData);
 
-    // 結果の処理
     if (result?.error) {
       setError(result.error);
     } else {
-      setMessage(action === 'login' ? 'ログイン成功！' : 'サインアップ成功！');
+      const successMsg = action === 'login' ? 'ログイン成功！' : 'サインアップ成功！';
+      setMessage(successMsg);
       if (action === 'login') {
         window.location.href = '/game';
       }
     }
+
+    setLoading(false);
   };
 
   return (
-    // ページ全体のレイアウト
-    <div className="flex min-h-screen items-center justify-center">
-      {/* ログインフォームのコンテナ */}
+    <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4">
       <div className="w-full max-w-md rounded-lg bg-white p-8 shadow-md">
         <h1 className="mb-6 text-2xl font-bold text-center">ログイン / サインアップ</h1>
-        {/* エラーとメッセージの表示 */}
-        {error && <p className="text-red-500">{error}</p>}
-        {message && <p className="text-green-500">{message}</p>}
-        <div className="space-y-4">
-          {/* メールアドレス入力フィールド */}
+
+        {/* フィードバック領域 */}
+        {error && (
+          <p className="mb-4 text-center text-sm text-red-500" role="alert" aria-live="polite">
+            {error}
+          </p>
+        )}
+        {message && (
+          <p className="mb-4 text-center text-sm text-green-600" role="status" aria-live="polite">
+            {message}
+          </p>
+        )}
+
+        <form
+          className="space-y-4"
+          onSubmit={(e) => handleSubmit(e, 'login')}
+        >
+          {/* メール */}
           <div>
-            <label htmlFor="email" className="block text-sm font-medium">メールアドレス</label>
+            <label htmlFor="email" className="block text-sm font-medium text-gray-700">
+              メールアドレス
+            </label>
             <input
               id="email"
               type="email"
@@ -56,11 +74,15 @@ export default function LoginPage() {
               onChange={(e) => setEmail(e.target.value)}
               className="mt-1 w-full rounded-md border p-2"
               required
+              autoComplete="email"
             />
           </div>
-          {/* パスワード入力フィールド */}
+
+          {/* パスワード */}
           <div>
-            <label htmlFor="password" className="block text-sm font-medium">パスワード</label>
+            <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+              パスワード
+            </label>
             <input
               id="password"
               type="password"
@@ -68,24 +90,28 @@ export default function LoginPage() {
               onChange={(e) => setPassword(e.target.value)}
               className="mt-1 w-full rounded-md border p-2"
               required
+              autoComplete="current-password"
             />
           </div>
-          {/* アクションボタン */}
+
+          {/* ボタン群 */}
           <div className="flex space-x-4">
             <button
-              onClick={() => handleSubmit('login')}
-              className="w-full rounded-md bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
+              type="submit"
+              disabled={loading}
+              className="w-full rounded-md bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 disabled:opacity-50"
             >
-              ログイン
+              {loading ? 'ログイン中...' : 'ログイン'}
             </button>
             <button
-              onClick={() => handleSubmit('signup')}
+              type="button"
+              onClick={(e) => handleSubmit(e as unknown as FormEvent<HTMLFormElement>, 'signup')}
               className="w-full rounded-md bg-green-600 px-4 py-2 text-white hover:bg-green-700"
             >
               サインアップ
             </button>
           </div>
-        </div>
+        </form>
       </div>
     </div>
   );
